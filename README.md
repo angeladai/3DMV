@@ -29,6 +29,24 @@ python test.py --gpu 0 --scene_list [path to list of test scenes] --model_path [
 This data has been precomputed from the [ScanNet](http://www.scan-net.org/) (v2) dataset.
 * Train data for ScanNet v2: [3dmv_scannet_v2_train.zip](http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_train.zip) (6.2G)
     * 2D train images can be processed from the ScanNet dataset using [`prepare_2d_data.py`](prepare_data/prepare_2d_data.py)
+    * Expected file structure for 2D data:
+    ```
+    scene0000_00/
+    |--color/
+       |--[framenum].jpg
+           ⋮
+    |--depth/
+       |--[framenum].png   (16-bit pngs)
+           ⋮
+    |--pose/
+       |--[framenum].txt   (4x4 rigid transform as txt file)
+           ⋮
+    |--label/    (if applicable)
+       |--[framenum].png   (8-bit pngs)
+           ⋮
+    scene0000_01/
+    ⋮
+    ```
 * Test scenes for ScanNet v2: [3dmv_scannet_v2_test_scenes.zip](http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_test_scenes.zip) (110M)
 
 
