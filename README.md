@@ -27,9 +27,9 @@ python test.py --gpu 0 --scene_list [path to list of test scenes] --model_path [
 
 ### Data:
 This data has been precomputed from the [ScanNet](http://www.scan-net.org/) (v2) dataset.
-* Train data for ScanNet v2: [3dmv_scannet_v2_train.zip] (http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_train.zip) (TODO G)
+* Train data for ScanNet v2: [3dmv_scannet_v2_train.zip] (http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_train.zip) (6.2G)
     * 2D train images can be processed from the ScanNet dataset using [`prepare_2d_data.py`](prepare_data/prepare_2d_data.py)
-* Test scenes for ScanNet v2: [3dmv_scannet_v2_test_scenes.zip] (http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_test_scenes.zip) (TODO G)
+* Test scenes for ScanNet v2: [3dmv_scannet_v2_test_scenes.zip] (http://dovahkiin.stanford.edu/3dmv-public/data/3dmv_scannet_v2_test_scenes.zip) (110M)
 
 
 ## Citation:  
