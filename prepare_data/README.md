@@ -26,7 +26,7 @@ Dependencies:
 * depends on the [sens file reader from ScanNet](https://github.com/ScanNet/ScanNet/blob/master/SensReader/python/SensorData.py); should be placed in the same directory
 * if export_label_images flag is on:
     * depends on [ScanNet util](https://github.com/ScanNet/ScanNet/tree/master/BenchmarkScripts/util.py); should be placed in the same directory
-    * assumes that label images are unzipped as scene*/label*/*.png
+    * assumes that label images are unzipped as `scene*/label*/*.png`
 
 Example usage:
 ```
