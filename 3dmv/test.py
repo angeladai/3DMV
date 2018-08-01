@@ -21,6 +21,7 @@ parser.add_argument('--scene_list', required=True, help='path to file list of sc
 parser.add_argument('--model_path', required=True, help='path to model')
 parser.add_argument('--data_path_2d', required=True, help='path to 2d data')
 parser.add_argument('--data_path_3d', required=True, help='path to 3d data')
+parser.add_argument('--has_gt', type=int, default=0, help='test scenes have gt to evaluate against')
 parser.add_argument('--output_path', default='./output', help='output path')
 # test params
 parser.add_argument('--num_classes', default=42, help='#classes')
@@ -98,6 +99,11 @@ model2d_trainable.eval()
 # data files
 scenes = util.read_lines_from_file(opt.scene_list)
 print '#scenes = ', len(scenes)
+if opt.has_gt:
+    print('evaluating test scenes')
+else:
+    print('running model over test scenes (no evaluation)')
+
 
 _SPLITTER = ','
 def evaluate_prediction(scene_occ, scene_label, output):
@@ -137,12 +143,13 @@ def test(scene_name, eval_file):
         print scene_file, os.path.exists(scene_file)
         print scene_image_file, os.path.exists(scene_image_file)
         raise
-    scene_occ, scene_label = data_util.load_scene(scene_file, num_classes)
+    scene_occ, scene_label = data_util.load_scene(scene_file, num_classes, opt.has_gt)
     if scene_occ.shape[1] > column_height:
         scene_occ = scene_occ[:, :column_height, :, :]
-        scene_label = scene_label[:column_height, :, :]
+        if opt.has_gt:
+            scene_label = scene_label[:column_height, :, :]
     scene_occ_sz = scene_occ.shape[1:]
-    depth_images, color_images, poses, frame_ids, world_to_grids, label_images = data_util.load_scene_image_info_multi(scene_image_file, scene_name, opt.data_path_2d, proj_image_dims, input_image_dims, num_classes, color_mean, color_std)
+    depth_images, color_images, poses, frame_ids, world_to_grids = data_util.load_scene_image_info_multi(scene_image_file, scene_name, opt.data_path_2d, proj_image_dims, input_image_dims, num_classes, color_mean, color_std)
 
     input_occ = torch.cuda.FloatTensor(1, 2, grid_dims[2], grid_dims[1], grid_dims[0])
     depth_image = torch.cuda.FloatTensor(num_images, proj_image_dims[1], proj_image_dims[0])
@@ -189,23 +196,27 @@ def test(scene_name, eval_file):
     mask = np.equal(scene_occ[0], 1)
     pred_label[np.logical_not(mask)] = 0
     util.write_array_to_file(pred_label.astype(np.uint8), os.path.join(opt.output_path, scene_name + '.bin'))
-    eval_scene = evaluate_prediction(scene_occ, scene_label, pred_label)
+    eval_scene = None
+    if opt.has_gt:
+        eval_scene = evaluate_prediction(scene_occ, scene_label, pred_label)
     return eval_scene
 
 
 def main():
     if not os.path.exists(opt.output_path):
         os.makedirs(opt.output_path)
-    eval_file = open(os.path.join(opt.output_path, 'eval.csv'), 'w')
-    header_fields = ['scene']
-    for c in valid_classes:
-        header_fields.append('#corr class ' + str(c))
-    for c in valid_classes:
-        header_fields.append('#total class ' + str(c))
-    for c in valid_classes:
-        header_fields.append('#union class ' + str(c))
-    header_fields.extend(['instance #corr', 'instance #total'])
-    eval_file.write(_SPLITTER.join(header_fields) + '\n')
+    eval_file = None
+    if opt.has_gt:
+        eval_file = open(os.path.join(opt.output_path, 'eval.csv'), 'w')
+        header_fields = ['scene']
+        for c in valid_classes:
+            header_fields.append('#corr class ' + str(c))
+        for c in valid_classes:
+            header_fields.append('#total class ' + str(c))
+        for c in valid_classes:
+            header_fields.append('#union class ' + str(c))
+        header_fields.extend(['instance #corr', 'instance #total'])
+        eval_file.write(_SPLITTER.join(header_fields) + '\n')
 
     # start testing
     inst_total_correct = 0
@@ -215,41 +226,43 @@ def main():
     class_total_union = np.zeros(num_classes)
     for scene in scenes:
         stats = test(scene, eval_file)
-        inst_total_correct += stats['instance_num_correct']
-        inst_total_occ += stats['instance_num_total']
-        class_total_correct += stats['class_num_correct']
-        class_total_occ += stats['class_num_total']
-        class_total_union += stats['class_num_union']
-        fields = [scene]
+        if opt.has_gt:
+            inst_total_correct += stats['instance_num_correct']
+            inst_total_occ += stats['instance_num_total']
+            class_total_correct += stats['class_num_correct']
+            class_total_occ += stats['class_num_total']
+            class_total_union += stats['class_num_union']
+            fields = [scene]
+            for c in valid_classes:
+                fields.append(stats['class_num_correct'][c])
+            for c in valid_classes:
+                fields.append(stats['class_num_total'][c])
+            for c in valid_classes:
+                fields.append(stats['class_num_union'][c])
+            fields.extend([stats['instance_num_correct'], stats['instance_num_total']])
+            eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
+    
+    if opt.has_gt:
+        # summary stats
+        instance_acc = float(inst_total_correct)/float(inst_total_occ)
+        class_acc = np.divide(class_total_correct, class_total_occ)
+        class_iou = np.divide(class_total_correct, class_total_union)
+        # summary stats header
+        fields = ['SUMMARY']
         for c in valid_classes:
-            fields.append(stats['class_num_correct'][c])
-        for c in valid_classes:
-            fields.append(stats['class_num_total'][c])
-        for c in valid_classes:
-            fields.append(stats['class_num_union'][c])
-        fields.extend([stats['instance_num_correct'], stats['instance_num_total']])
+            fields.append('class ' + str(c))
         eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
-    # summary stats
-    instance_acc = float(inst_total_correct)/float(inst_total_occ)
-    class_acc = np.divide(class_total_correct, class_total_occ)
-    class_iou = np.divide(class_total_correct, class_total_union)
-    # summary stats header
-    fields = ['SUMMARY']
-    for c in valid_classes:
-        fields.append('class ' + str(c))
-    eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
-    fields = ['%acc']
-    for c in valid_classes:
-        fields.append(class_acc[c])
-    eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
-    fields = ['iou']
-    for c in valid_classes:
-        fields.append(class_iou[c])
-    eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
-    fields = ['instance acc', str(instance_acc)]
-    eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
-    eval_file.close()
-
+        fields = ['%acc']
+        for c in valid_classes:
+            fields.append(class_acc[c])
+        eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
+        fields = ['iou']
+        for c in valid_classes:
+            fields.append(class_iou[c])
+        eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
+        fields = ['instance acc', str(instance_acc)]
+        eval_file.write(_SPLITTER.join([str(f) for f in fields]) + '\n')
+        eval_file.close()
 
 
 if __name__ == '__main__':

@@ -59,7 +59,7 @@ def load_depth_label_pose(depth_file, color_file, pose_file, depth_image_dims, c
     return depth_image, color_image, pose
 
 
-def load_scene(filename, num_classes):
+def load_scene(filename, num_classes, load_gt):
     assert os.path.isfile(filename)
     fin = open(filename, 'rb')
     # read header
@@ -70,18 +70,22 @@ def load_scene(filename, num_classes):
 
     numElems = width * height * depth
     sdfs = struct.unpack('f'*numElems, fin.read(numElems*4))  #grid3<float>
-    labels = struct.unpack('B'*numElems, fin.read(numElems))  #grid3<uchar>
+    labels = None
+    if load_gt:
+        labels = struct.unpack('B'*numElems, fin.read(numElems))  #grid3<uchar>
     fin.close()
     sdfs = np.asarray(sdfs, dtype=np.float32).reshape([depth, height, width])
-    labels = np.asarray(labels, dtype=np.uint8).reshape([depth, height, width])
+    if load_gt:
+        labels = np.asarray(labels, dtype=np.uint8).reshape([depth, height, width])
     occ = np.ndarray((2, depth, height, width), np.dtype('B')) #occupancy grid for occupied/empty space, known/unknown space
     occ[0] = np.less_equal(np.abs(sdfs), 1)
     occ[1] = np.greater_equal(sdfs, -1)
-    # ensure occupied space has non-zero labels
-    labels[np.logical_and(np.equal(occ[0], 1), np.equal(labels, 0))] = num_classes - 1
-    # ensure non-occupied space has zero labels
-    labels[np.equal(occ[0], 0)] = 0
-    labels[np.equal(labels, 255)] = num_classes - 1
+    if load_gt:
+        # ensure occupied space has non-zero labels
+        labels[np.logical_and(np.equal(occ[0], 1), np.equal(labels, 0))] = num_classes - 1
+        # ensure non-occupied space has zero labels
+        labels[np.equal(occ[0], 0)] = 0
+        labels[np.greater_equal(labels, num_classes)] = num_classes - 1
     return occ, labels
 
 
@@ -150,7 +154,6 @@ def load_scene_image_info_multi(filename, scene_name, image_path, depth_image_di
     unique_frame_ids = np.unique(frame_ids)
     depth_images = {}
     color_images = {}
-    label_images = {}
     poses = {}
     normalize = transforms.Normalize(mean=color_mean, std=color_std)
     for f in unique_frame_ids:
@@ -163,9 +166,6 @@ def load_scene_image_info_multi(filename, scene_name, image_path, depth_image_di
         depth_images[f] = torch.from_numpy(depth_image.astype(np.float32))
         color_images[f] = color_image
         poses[f] = pose
-        label_file = os.path.join(image_path, scene_name, 'label', str(f) + '.png')
-        if os.path.isfile(label_file):
-            label_images[f] = load_label_frame(label_file, depth_image_dims, num_classes).long()
-    return depth_images, color_images, poses, frame_ids, world_to_grids, label_images
+    return depth_images, color_images, poses, frame_ids, world_to_grids
 
 
